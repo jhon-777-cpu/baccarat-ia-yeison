@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Speed Baccarat IA - Yeison</title>
+<style>
+  body { font-family: Arial, sans-serif; background-color: #e0f2fe; color: #0f172a; padding: 20px; }
+  h1 { color: #0ea5e9; }
+  .btn { padding: 10px; margin: 5px; font-weight: bold; border: none; border-radius: 5px; cursor: pointer; color: white; }
+  .player { background-color: #0ea5e9; }
+  .banker { background-color: #ef4444; }
+  .tie { background-color: #8b5cf6; }
+  .history-grid { display: grid; grid-template-columns: repeat(8, 35px); gap: 4px; margin-top: 10px; }
+  .cell { width: 35px; height: 35px; display: flex; align-items: center; justify-content: center; font-size: 16px; color: white; font-weight: bold; border-radius: 4px; }
+  .info { margin-top: 10px; padding: 10px; background-color: #ffffff; border-radius: 5px; }
+  .recommendation { font-weight: bold; margin-top: 5px; }
+</style>
+</head>
+<body>
+
+<h1>Speed Baccarat IA - Yeison</h1>
+<p>Banca fija: <strong>2.000.000 COP</strong></p>
+<p>Niveles de apuesta: 25k / 50k / 100k</p>
+
+<div>
+  <button class="btn player" onclick="addResult('P')">Player 🔵</button>
+  <button class="btn banker" onclick="addResult('B')">Banker 🔴</button>
+  <button class="btn tie" onclick="addResult('T')">Empate 🟣</button>
+  <button class="btn" onclick="undoLast()" style="background-color:#94a3b8;">Deshacer</button>
+  <button class="btn" onclick="resetSession()" style="background-color:#64748b;">Reiniciar</button>
+</div>
+
+<div class="info">
+  <div>Banca actual: <span id="bank">2.000.000</span> COP</div>
+  <div>Ganancia sesión: <span id="profit">0</span> COP</div>
+  <div class="recommendation" id="recommendation">Listo — ingresa resultados y la IA te recomendará la siguiente apuesta.</div>
+</div>
+
+<div class="history-grid" id="history"></div>
+<div class="info">
+  <div><strong>Patrón detectado:</strong> <span id="pattern">Sin datos</span></div>
+</div>
+
+<script>
+let bank = 2000000;
+let profit = 0;
+let history = [];
+let currentLevel = 0;
+const BET_LEVELS = [25000, 50000, 100000];
+let currentBet = BET_LEVELS[0];
+
+function formatMoney(n) { return n.toLocaleString('es-CO'); }
+
+function updateUI() {
+  document.getElementById('bank').innerText = formatMoney(bank);
+  document.getElementById('profit').innerText = profit >=0 ? '+' + formatMoney(profit) : formatMoney(profit);
+  const historyDiv = document.getElementById('history');
+  historyDiv.innerHTML = '';
+  history.slice(-40).forEach(r => {
+    const cell = document.createElement('div');
+    cell.classList.add('cell');
+    if(r==='P') cell.style.backgroundColor = '#0ea5e9';
+    else if(r==='B') cell.style.backgroundColor = '#ef4444';
+    else cell.style.backgroundColor = '#8b5cf6';
+    cell.innerText = r;
+    historyDiv.appendChild(cell);
+  });
+  const pat = detectPattern();
+  document.getElementById('pattern').innerText = pat.type;
+  const rec = computeRecommendation(pat);
+  document.getElementById('recommendation').innerText = rec.message;
+}
+
+function addResult(r) { history.push(r); resolvePreviousBet(r); updateUI(); }
+function undoLast() { if(history.length>0){ history.pop(); updateUI(); } }
+function resetSession() { bank=2000000; profit=0; history=[]; currentLevel=0; currentBet=BET_LEVELS[0]; updateUI(); }
+
+function resolvePreviousBet(r){
+  const pat = detectPattern();
+  const rec = computeRecommendation(pat);
+  if(rec.side==='WAIT') return;
+  let betAmt = currentBet;
+  if(rec.side===r){
+    let payout = rec.side==='B'? Math.round(betAmt*0.95) : betAmt;
+    bank += payout; profit += payout; currentLevel=0; currentBet=BET_LEVELS[0];
+  } else { bank -= betAmt; profit -= betAmt; currentLevel=Math.min(currentLevel+1,BET_LEVELS.length-1); currentBet=BET_LEVELS[currentLevel]; }
+}
+
+function detectPattern(){
+  const cleaned = history.filter(x=>x!=='T');
+  if(cleaned.length<4) return {type:'Sin datos'};
+  const last4 = cleaned.slice(-4);
+  if(last4.every(x=>x===last4[0])) return {type:'Racha '+(last4[0]==='B'?'Banker':'Player'), side:last4[0]};
+  let alt=true; for(let i=1;i<last4.length;i++){ if(last4[i]===last4[i-1]) alt=false; }
+  if(alt) return {type:'Alternancia', side: cleaned[cleaned.length-1]};
+  if(last4[0]===last4[1] && last4[2]===last4[3] && last4[0]!==last4[2]) return {type:'Doble-doble', side:last4[2]};
+  return {type:'Inestable'};
+}
+
+function computeRecommendation(pat){
+  if(pat.type==='Sin datos') return {side:'WAIT', message:'Esperando más manos'};
+  if(pat.type.startsWith('Racha')) return {side:pat.side, message:'Racha detectada. Seguir la tendencia ('+(pat.side==='B'?'Banker':'Player')+')'};
+  if(pat.type==='Alternancia'){ const last = history.filter(x=>x!=='T').slice(-1)[0]; const opp=last==='B'?'P':'B'; return {side:opp, message:'Alternancia detectada. Apostar al contrario del último resultado'}; }
+  if(pat.type==='Doble-doble'){ const rec=pat.side==='B'?'P':'B'; return {side:rec, message:'Doble-doble detectado. Repetir patrón (apuesta al par esperado)'}; }
+  return {side:'WAIT', message:'Mesa inestable — esperar 1-2 manos'};
+}
+
+updateUI();
+</script>
+
+</body>
+</html>
